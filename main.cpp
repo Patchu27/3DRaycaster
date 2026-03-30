@@ -38,9 +38,121 @@ void getDuration(std::source_location loc = std::source_location::current()){
 }
 
 
+    constexpr std::uint64_t mapWidth = 100, mapHeight = mapWidth, mapDepth = mapWidth;
 
+    constexpr std::uint64_t mapSize = mapWidth*mapHeight*mapDepth;
+
+    std::uint8_t* map = new std::uint8_t[mapSize];
+
+    constexpr float degreeConst = 0.0174533f;//1 degree in radians
+
+    //this can be used for the x and y const since the scale in the x and y should be kept the same
+    constexpr float sepn = 64.f;
+
+    constexpr sf::Color backgroundColor = sf::Color(10,10,10);
+    constexpr sf::Color wallColor = sf::Color(50,50,200);
+
+    void setMap(){
+        for (size_t i = 0; i < mapSize; i++){
+        map[i] = (!(rand()%10));
+       // std::cout << (int)map[i];//cout defaults to reading unsigned 8 bit ints as chars/symbols
+    }
+    }
+
+    struct Ray{
+        sf::Vector3f pos; //x,y,z
+        sf::Vector2f angles; //yaw and pitch
+    };
+    
+    int snapFloat(const float input, const float snapScale){
+        return floor(input/snapScale)*snapScale;
+    }
+
+    sf::Vector3i snapFloat3(const sf::Vector3f& input,const float snapScale){
+        return sf::Vector3i{snapFloat(input.x,snapScale),snapFloat(input.y,snapScale),snapFloat(input.z,snapScale)};
+    }
+
+    size_t coordsToN(const sf::Vector3i& coords,const sf::Vector3i& mapDimensions){//I wish SFML had 3u
+            const size_t xyComp = coords.x + coords.y*mapDimensions.x;
+        return xyComp + coords.z*mapDimensions.y*mapDimensions.x;
+    }
+
+    float clamp(float input, float min, float max){
+        if (input>max) return max;
+        if (input<min) return min;
+        return input;
+    }
+    
+
+    void resolvePixels(const sf::Vector3f& cameraPosition, const sf::Vector3i& mapDimensions, const float snapScale, const float viewAngleDegrees, const size_t maxRaySteps, sf::Image& renderImage,sf::RenderTarget& target){
+            size_t pixelX;
+            size_t pixelY;
+            size_t resX = renderImage.getSize().x;
+            size_t resY = renderImage.getSize().y;
+            float resXHalf = resX/2.f;
+            float resYHalf = resY/2.f;
+            const float pixelAngleConst = viewAngleDegrees/resX;
+
+            Ray pixelRay;
+
+            sf::Vector3i snappedPos;
+
+            size_t rayStepN;
+            bool collision;
+
+            sf::CircleShape circ(2,3);
+
+        for (pixelY = 0; pixelY<resY; pixelY++){
+            pixelRay.angles.y = (((float)(pixelY-resXHalf)/resX)*pixelAngleConst)*viewAngleDegrees;//made it resXHalf to keep the aspect ratio
+                for (pixelX = 0; pixelX<resX;pixelX++){
+                    pixelRay.pos.y = cameraPosition.y;
+                   
+                    pixelRay.pos.x = cameraPosition.x;
+                    pixelRay.angles.x = (((float)(pixelX-resXHalf)/resX)*pixelAngleConst)*viewAngleDegrees;
+
+                    collision = 0;//this is currently unused
+                for (rayStepN = 0; rayStepN < maxRaySteps; rayStepN++){
+                        //circ.setPosition({pixelRay.pos.x,pixelRay.pos.y});
+                        //target.draw(circ);
+                        snappedPos = snapFloat3(pixelRay.pos,snapScale);
+
+                        size_t mapIndex = coordsToN(snappedPos,mapDimensions);
+                        if (mapIndex<mapSize){
+                                if (map[mapIndex]){
+                                        const float xdist = cameraPosition.x - pixelRay.pos.x;
+                                        const float ydist = cameraPosition.y - pixelRay.pos.y;
+                                        const float zdist = cameraPosition.z - pixelRay.pos.z;
+                                
+                                        float sdist = sqrt(xdist*xdist + ydist*ydist + zdist*zdist);
+                                           if (sdist<1.f) sdist = 1.f;
+
+                                       std::uint8_t tempColor = clamp(10000.f/sdist,0,255);
+
+                                     renderImage.setPixel({(unsigned)pixelX,(unsigned)pixelY},sf::Color(tempColor,tempColor,tempColor));
+                                     collision = 1;
+                                        //std::cout << "hit";
+                                     break;
+                                }
+                                else
+                                {
+                                //advance ray if no collision is found
+                                pixelRay.pos += sf::Vector3f{sin(pixelRay.angles.x)*snapScale/10,cos(pixelRay.angles.x)*snapScale/10,sin(pixelRay.angles.y)*snapScale*0};//the z is missing something. x and y seem to be functioning properly. It doesn't appear to be an issue with the indexing function
+                                }
+                        }
+                        else
+                        {
+                            break;
+                        }
+                        
+                }
+            }
+        }
+    }
 
 int main(){
+
+
+    setMap();
 
     bool tabLock = 0;
     std::string windowName = "App";
@@ -57,8 +169,14 @@ int main(){
     window.setFramerateLimit(63);
     window.setVerticalSyncEnabled(1);
 
-    sf::RenderTexture outRenderTexture(window.getSize());
-    sf::Sprite outSprite{outRenderTexture.getTexture()};
+    sf::Image outImage(window.getSize(),sf::Color(255,255,255,255));
+    sf::Texture outTexture(outImage);
+  
+    sf::Sprite outSprite{outTexture};
+
+    float viewAngleDegrees = 60.f; 
+
+    sf::Vector3f cameraPos;
 
     while (window.isOpen()){
  
@@ -87,14 +205,16 @@ int main(){
                 }
             }//poll events
 
-    window.clear(sf::Color::White);
-    outRenderTexture.clear(sf::Color::White);
+    window.clear(sf::Color::Black);
+   
 
+    cameraPos = {(float)sf::Mouse::getPosition().x,(float)sf::Mouse::getPosition().y,sepn/2.f};
 
-    
+    outImage.resize(outImage.getSize(),backgroundColor);//this clears the image to black
 
-    outRenderTexture.display();    
+    resolvePixels(cameraPos, {mapWidth,mapHeight,mapDepth}, sepn, viewAngleDegrees, 40, outImage,window);
 
+     outTexture.update(outImage);
     window.draw(outSprite);
 
 
@@ -103,6 +223,9 @@ int main(){
 }//has focus
 }//while open
 
+delete[] map;
+
+return 0;
 
 }
 
