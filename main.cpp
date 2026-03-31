@@ -54,6 +54,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
     constexpr sf::Color backgroundColor = sf::Color(10,10,10);
     constexpr sf::Color wallColor = sf::Color(50,50,200);
 
+    
     void setMap(){
   for (size_t i=0; i<mapWidth; i++){
                 map[i] = new std::uint8_t*[mapHeight];
@@ -65,15 +66,16 @@ void getDuration(std::source_location loc = std::source_location::current()){
                     }
             }
     }
-    /*
+    
+   /* 
     void setMap(){
         for (size_t i = 0; i < mapSize; i++)
         {
                 map[i] = (!(rand()%10));
                 //std::cout << (int)map[i];//cout defaults to reading unsigned 8 bit ints as chars/symbols
         }
-    }
-    */
+    }*/
+    
 
     struct Ray{
         sf::Vector3f pos; //x,y,z
@@ -140,11 +142,11 @@ void getDuration(std::source_location loc = std::source_location::current()){
                                         //target.draw(circ);
                                         snappedPos = snapFloat3(pixelRay.pos,snapScale);
                                         snappedPos = snappedPos.componentWiseDiv({64,64,64});
-                                       // size_t mapIndex = coordsToN(snappedPos,mapDimensions);
+                                     //    size_t mapIndex = coordsToN(snappedPos,mapDimensions);
                                    // if (mapIndex<mapSize)
                                     if (snappedPos.x<mapWidth && snappedPos.y<mapHeight && snappedPos.z<mapDepth)
                                     {
-                                           // if (map[mapIndex])
+                                            //if (map[mapIndex])
                                           // std::cout << snappedPos.x << " " << snappedPos.y << " " << snappedPos.z << std::endl;
                                               if (map[snappedPos.x][snappedPos.y][snappedPos.z])
                                             {
@@ -186,8 +188,8 @@ int main(){
 
     bool tabLock = 0;
     std::string windowName = "App";
-    bool fullscreenEnabled = 1;
-    sf::Vector2u windowResolution{1920,1080};
+    bool fullscreenEnabled = 0;
+    sf::Vector2u windowResolution{192,108};
     sf::RenderWindow window(sf::VideoMode({100,100}), windowName,sf::State::Windowed);
     
     if (fullscreenEnabled)
@@ -238,11 +240,11 @@ int main(){
     window.clear(sf::Color::Black);
    
 
-    cameraPos = {(float)sf::Mouse::getPosition().x,(float)sf::Mouse::getPosition().y,sepn/2.f};
+    cameraPos = {(float)sf::Mouse::getPosition().x,(float)sf::Mouse::getPosition().y,500};
 
     outImage.resize(outImage.getSize(),backgroundColor);//this clears the image to black
 
-    resolvePixels(cameraPos, {mapWidth,mapHeight,mapDepth}, sepn, viewAngleDegrees, 360, outImage,window);
+    resolvePixels(cameraPos, {mapWidth,mapHeight,mapDepth}, sepn, viewAngleDegrees, 90, outImage,window);
 
      outTexture.update(outImage);
     window.draw(outSprite);
