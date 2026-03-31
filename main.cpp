@@ -40,11 +40,13 @@ void getDuration(std::source_location loc = std::source_location::current()){
 
     constexpr std::uint64_t mapWidth = 100, mapHeight = mapWidth, mapDepth = mapWidth;
 
+    constexpr std::uint64_t mapXYArea = mapWidth*mapHeight;//used in index function
+
     constexpr std::uint64_t mapSize = mapWidth*mapHeight*mapDepth;
 
-  //  std::uint8_t* map = new std::uint8_t[mapSize];
 
-    std::uint8_t*** map = new std::uint8_t**[mapWidth];
+    std::uint8_t* map = new std::uint8_t[mapSize];
+
 
     constexpr float degreeConst = 0.0174533f;//1 degree in radians
 
@@ -56,25 +58,12 @@ void getDuration(std::source_location loc = std::source_location::current()){
 
     
     void setMap(){
-  for (size_t i=0; i<mapWidth; i++){
-                map[i] = new std::uint8_t*[mapHeight];
-                    for (size_t j=0; j<mapHeight; j++){
-                        map[i][j] = new std::uint8_t[mapDepth];
-                            for (size_t k=0; k<mapDepth; k++){
-                                map[i][j][k] = !(rand()%10);
-                            }    
-                    }
-            }
-    }
-    
-   /* 
-    void setMap(){
         for (size_t i = 0; i < mapSize; i++)
         {
-                map[i] = (!(rand()%10));
+                map[i] = (!(rand()%5));
                 //std::cout << (int)map[i];//cout defaults to reading unsigned 8 bit ints as chars/symbols
         }
-    }*/
+    }
     
 
     struct Ray{
@@ -82,7 +71,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
         sf::Vector2f angles; //yaw and pitch
     };
     
-
+/*
     int snapFloat(const float input, const float snapScale){
         return floor(input/snapScale)*snapScale;
     }
@@ -91,11 +80,16 @@ void getDuration(std::source_location loc = std::source_location::current()){
     sf::Vector3i snapFloat3(const sf::Vector3f& input,const float snapScale){
         return sf::Vector3i{snapFloat(input.x,snapScale),snapFloat(input.y,snapScale),snapFloat(input.z,snapScale)};
     }
+*/
 
+    sf::Vector3i getGridPos(const sf::Vector3f& input, const float snapScale){
+        return sf::Vector3i{(int)floor(input.x/snapScale),(int)floor(input.y/snapScale),(int)floor(input.z/snapScale)};
+    }
 
     size_t coordsToN(const sf::Vector3i& coords,const sf::Vector3i& mapDimensions){//I wish SFML had 3u
         const size_t xyComp = coords.x + coords.y*mapDimensions.x;
-        return xyComp + coords.z*mapDimensions.y*mapDimensions.x;
+        //old line//return xyComp + coords.z*mapDimensions.y*mapDimensions.x;
+        return xyComp + coords.z*mapXYArea;
     }
 
 
@@ -129,7 +123,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
             {
                 for (pixelX = 0; pixelX<resX;pixelX++)
                 {
-                        pixelRay.angles.y = (((float)(pixelY-resXHalf)/resX)*pixelAngleConst)*viewAngleDegrees;//made it resXHalf to keep the aspect ratio
+                        pixelRay.angles.y = (((float)(pixelY-resYHalf)/resY)*pixelAngleConst)*viewAngleDegrees;//made it resXHalf to keep the aspect ratio
                                 pixelRay.pos.y = cameraPosition.y;
                    
                                 pixelRay.pos.x = cameraPosition.x;
@@ -140,15 +134,13 @@ void getDuration(std::source_location loc = std::source_location::current()){
                             {
                                         //circ.setPosition({pixelRay.pos.x,pixelRay.pos.y});
                                         //target.draw(circ);
-                                        snappedPos = snapFloat3(pixelRay.pos,snapScale);
-                                        snappedPos = snappedPos.componentWiseDiv({64,64,64});
-                                     //    size_t mapIndex = coordsToN(snappedPos,mapDimensions);
-                                   // if (mapIndex<mapSize)
-                                    if (snappedPos.x<mapWidth && snappedPos.y<mapHeight && snappedPos.z<mapDepth)
+                                        //snappedPos = snapFloat3(pixelRay.pos,snapScale);
+                                       // snappedPos = snappedPos.componentWiseDiv({64,64,64});
+                                         snappedPos = getGridPos(pixelRay.pos,snapScale);
+                                         size_t mapIndex = coordsToN(snappedPos,mapDimensions);
+                                    if (mapIndex<mapSize)
                                     {
-                                            //if (map[mapIndex])
-                                          // std::cout << snappedPos.x << " " << snappedPos.y << " " << snappedPos.z << std::endl;
-                                              if (map[snappedPos.x][snappedPos.y][snappedPos.z])
+                                            if (map[mapIndex])
                                             {
                                                         const float xdist = cameraPosition.x - pixelRay.pos.x;
                                                         const float ydist = cameraPosition.y - pixelRay.pos.y;
@@ -159,7 +151,6 @@ void getDuration(std::source_location loc = std::source_location::current()){
                                                         if (sdist<1.f) sdist = 1.f;
 
                                                         std::uint8_t tempColor = clamp(10000.f/sdist,0,255);
-
                                                         renderImage.setPixel({(unsigned)pixelX,(unsigned)pixelY},sf::Color(tempColor,tempColor,tempColor));
                                                         collision = 1;
                                                         //std::cout << "hit";
@@ -168,7 +159,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
                                             else
                                             {
                                                         //advance ray if no collision is found
-                                                        pixelRay.pos += sf::Vector3f{sin(pixelRay.angles.x)*snapScale/20,cos(pixelRay.angles.x)*snapScale/20,sin(pixelRay.angles.y)*snapScale/20};//the z is missing something. x and y seem to be functioning properly. It doesn't appear to be an issue with the indexing function
+                                                        pixelRay.pos += sf::Vector3f{sin(pixelRay.angles.x)*snapScale/80,cos(pixelRay.angles.x)*snapScale/80,sin(pixelRay.angles.y)*snapScale/80};//the z is missing something. x and y seem to be functioning properly. It doesn't appear to be an issue with the indexing function
                                             }
                                     }
                                     else
@@ -188,8 +179,8 @@ int main(){
 
     bool tabLock = 0;
     std::string windowName = "App";
-    bool fullscreenEnabled = 0;
-    sf::Vector2u windowResolution{192,108};
+    bool fullscreenEnabled = 1;
+    sf::Vector2u windowResolution{1920,1080};
     sf::RenderWindow window(sf::VideoMode({100,100}), windowName,sf::State::Windowed);
     
     if (fullscreenEnabled)
@@ -244,7 +235,7 @@ int main(){
 
     outImage.resize(outImage.getSize(),backgroundColor);//this clears the image to black
 
-    resolvePixels(cameraPos, {mapWidth,mapHeight,mapDepth}, sepn, viewAngleDegrees, 90, outImage,window);
+    resolvePixels(cameraPos, {mapWidth,mapHeight,mapDepth}, sepn, viewAngleDegrees, 360, outImage,window);
 
      outTexture.update(outImage);
     window.draw(outSprite);
