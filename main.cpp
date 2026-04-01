@@ -133,45 +133,24 @@ void getDuration(std::source_location loc = std::source_location::current()){
 
             for (pixelY = 0; pixelY<resY; pixelY++)
             {
-                //this is the new version with just a modifier for FOV... I realize this isn't fov really... 
-                //Okay so maybe I do have an fov, it multiplies and I need to divide by the larger of the two dimensions (being the X) like I was doing
-
-                //
-                //pixelRay.angles.y = (((float)(pixelY-resXHalf)/resX+0.5f)*pixelAngleConst)*FOVDegrees;
-
-                //this version, dividing by resX and not resY seems correct to me for scaling and seems to correct x scaling, which makes sense because the y scale would be squished if dividing by the y screen height
-                
-                //*******************************
-                //pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*pixelAngleConst;//made it resXHalf to keep the aspect ratio
-                
-                //I SHOULD HAVE BEEN USING DEGREECONST NOT PIXELANGLECONST. I screwed up. But now I know why it wasn't working how I expected. Wow.
-                pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*degreeConst + cameraRotation.y;//adding rotation input now//made it resXHalf to keep the aspect ratio
-                //*******************************
-                
-                // pixelRay.angles.y = (((float)(pixelY-resYHalf)/resY)*pixelAngleConst)*viewAngleDegrees;//made it resXHalf to keep the aspect ratio
-                
-                for (pixelX = 0; pixelX<resX;pixelX++)
-                {
-                                //pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*pixelAngleConst;
-                                pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*degreeConst*cos(pixelRay.angles.y) + cameraRotation.x;//soon I'll combine these consts to be more efficient but I'm leaving it for now to make the fix clear
+                        pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*degreeConst + cameraRotation.y;
+                    
+                    for (pixelX = 0; pixelX<resX;pixelX++)
+                    {
                                 
-                                //pixelRay.pos.x = cameraPosition.x;
-                                //pixelRay.pos.y = cameraPosition.y;
-                                //pixelRay.pos.z = cameraPosition.z;
+                                pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*degreeConst + cameraRotation.x;//still leaving this in for clarity since I'm still working on it//soon I'll combine these consts to be more efficient but I'm leaving it for now to make the fix clear
 
                                 sf::Vector3f rayVec = sf::Vector3f{sin(pixelRay.angles.x),cos(pixelRay.angles.x),sin(pixelRay.angles.y)}.componentWiseMul({substepVal,substepVal,substepVal});
 
                                 pixelRay.pos = cameraPosition + rayVec.componentWiseMul({substepVal,substepVal,substepVal});
 
-                               // pixelRay.angles.x = (((float)(pixelX-resXHalf)/resXHalf)*pixelAngleConst)*FOVDegrees;
-                                collision = 0;//this is currently unused
+                                collision = 0;//this is currently unutilized
                             
                             for (rayStepN = 0; rayStepN < maxRaySteps; rayStepN++)
                             {
                                         //circ.setPosition({pixelRay.pos.x,pixelRay.pos.y});
                                         //target.draw(circ);
-                                        //snappedPos = snapFloat3(pixelRay.pos,snapScale);
-                                       // snappedPos = snappedPos.componentWiseDiv({64,64,64});
+
                                          snappedPos = getGridPos(pixelRay.pos,snapScale);
                                          size_t mapIndex = coordsToN(snappedPos,mapDimensions);
                                     if (mapIndex<mapSize)
@@ -216,7 +195,7 @@ int main(){
     bool tabLock = 0;
     std::string windowName = "App";
     bool fullscreenEnabled = 1;
-    sf::Vector2u windowResolution{192,108};
+    sf::Vector2u windowResolution{1920,1080};
     sf::RenderWindow window(sf::VideoMode({100,100}), windowName,sf::State::Windowed);
     
     if (fullscreenEnabled)
@@ -228,12 +207,15 @@ int main(){
     window.setFramerateLimit(63);
     window.setVerticalSyncEnabled(1);
 
-    sf::Image outImage(windowResolution,sf::Color(255,255,255,255));
+
+    const float resolutionScale = 0.08f; 
+   
+    sf::Image outImage(sf::Vector2u(windowResolution.x*resolutionScale,windowResolution.y*resolutionScale),sf::Color(255,255,255,255));
     sf::Texture outTexture(outImage);
   
+
     sf::Sprite outSprite{outTexture};
 
-    
     sf::Vector3f cameraPos;
     
     float FOVDegrees = 90.f;
@@ -300,16 +282,24 @@ void 	setMouseCursor (const Cursor &cursor)
     //cameraPos = {(float)sf::Mouse::getPosition().x,(float)sf::Mouse::getPosition().y,500};
     //cameraPos = {600,500,500};
 
-    cameraPos += sf::Vector3f(sin(cameraRotation.x)*flySpeed,cos(cameraRotation.x)*flySpeed,sin(cameraRotation.y)*flySpeed);
+    const std::int8_t frontDirection = (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)-sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S));
+    const std::int8_t sideDirection = (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)-sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A));
+
+    //const sf::Vector2f movementVector = cameraRotation + sf::Vector2f({(90*degreeConst*sideDirection-180.f*degreeConst*frontDirection)/(1+((!!frontDirection)&&(!!sideDirection))),0.f});
+
+   // if ((!!frontDirection)||(!!sideDirection))
+    //cameraPos += sf::Vector3f(sin(movementVector.x)*flySpeed,cos(movementVector.x)*flySpeed,sin(movementVector.y));
+    cameraPos += sf::Vector3f(sin(cameraRotation.x)*flySpeed*(float)frontDirection,cos(cameraRotation.x)*flySpeed*(float)frontDirection,sin(cameraRotation.y)*flySpeed*(float)frontDirection);
 
     FOVDegrees = clamp(FOVDegrees*(1.f+0.05f*(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::O)-sf::Keyboard::isKeyPressed(sf::Keyboard::Key::I))),minFOVDegrees,maxFOVDegrees);
 
     outImage.resize(outImage.getSize(),backgroundColor);//this clears the image to black
-    
+     //snappedPos = snapFloat3(pixelRay.pos,snapScale);
+                                       // snappedPos = snappedPos.componentWiseDiv({64,64,64});
     //cameraRotation += sf::Vector2f{0.01f,0.0f};
     //CONTROLS
             //scaling has to be adjusted by the square root of the previous for the FOV to be the same, which makes sense because the scaling is determined by the X width of the screen and used twice to make the square
-    resolvePixels(cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 250, outImage,window);
+    resolvePixels(cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 200, outImage,window);
 
     outTexture.update(outImage);
     outSprite.setScale(((sf::Vector2f)window.getSize()).componentWiseDiv((sf::Vector2f)outImage.getSize()));
