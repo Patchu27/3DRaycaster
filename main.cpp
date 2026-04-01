@@ -107,7 +107,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
     }
     
 
-    void resolvePixels(const sf::Vector3f& cameraPosition, const sf::Vector2f& cameraRotation, const float FOVDegrees, const sf::Vector3i& mapDimensions, const float snapScale, const size_t maxRaySteps, sf::Image& renderImage,sf::RenderTarget& target)
+    void resolvePixels(bool corrected, const sf::Vector3f& cameraPosition, const sf::Vector2f& cameraRotation, const float FOVDegrees, const sf::Vector3i& mapDimensions, const float snapScale, const size_t maxRaySteps, sf::Image& renderImage,sf::RenderTarget& target)
     {
                 size_t pixelX;
                 size_t pixelY;
@@ -115,9 +115,6 @@ void getDuration(std::source_location loc = std::source_location::current()){
                 size_t resY = renderImage.getSize().y;
                 const float resXHalf = (float)resX/2.f;
                 const float resYHalf = (float)resY/2.f;
-
-                //this was no longer needed, and I was confusing it with degreeConst, which was causing me to have scaling problems for hours... leaving this in here for now, will be removed in the next commit
-                //const float pixelAngleConst = FOVDegrees/resX;
 
                 Ray pixelRay;
 
@@ -128,21 +125,25 @@ void getDuration(std::source_location loc = std::source_location::current()){
 
                 //sf::CircleShape circ(2,3);
                 
-                float substepVal = snapScale/20.f;
+                float substepVal = snapScale/40.f;
                 
 
             for (pixelY = 0; pixelY<resY; pixelY++)
             {
+                
                         pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*degreeConst + cameraRotation.y;
-                    
                     for (pixelX = 0; pixelX<resX;pixelX++)
                     {
                                 
                                 pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*degreeConst + cameraRotation.x;//still leaving this in for clarity since I'm still working on it//soon I'll combine these consts to be more efficient but I'm leaving it for now to make the fix clear
+                                sf::Vector3f rayVec;
+                                //*********//we left off here trying to fix the z/looking down problem. Everything looks fine when you look left and right but as soon as you look up or down everything gets squared and then inverted. It seems that where there should be a downward view there's an inverted view instead, perfectly in its place
+                                if (corrected)//why is the output wrong only when I look up or down? The camera should rotate the whole cast in any and all directions. It probably won't help the problem but you can try keeping the angle within 1 revolution
+                                rayVec = sf::Vector3f{sin(pixelRay.angles.x)*cos(pixelRay.angles.y),cos(pixelRay.angles.x)*cos(pixelRay.angles.y),sin(pixelRay.angles.y)}.componentWiseMul({substepVal,substepVal,substepVal});
+                                else
+                                rayVec = sf::Vector3f{sin(pixelRay.angles.x),cos(pixelRay.angles.x),sin(pixelRay.angles.y)}.componentWiseMul({substepVal,substepVal,substepVal});
 
-                                sf::Vector3f rayVec = sf::Vector3f{sin(pixelRay.angles.x),cos(pixelRay.angles.x),sin(pixelRay.angles.y)}.componentWiseMul({substepVal,substepVal,substepVal});
-
-                                pixelRay.pos = cameraPosition + rayVec.componentWiseMul({substepVal,substepVal,substepVal});
+                                pixelRay.pos = cameraPosition + rayVec;//.componentWiseMul({substepVal,substepVal,substepVal});
 
                                 collision = 0;//this is currently unutilized
                             
@@ -299,7 +300,7 @@ void 	setMouseCursor (const Cursor &cursor)
     //cameraRotation += sf::Vector2f{0.01f,0.0f};
     //CONTROLS
             //scaling has to be adjusted by the square root of the previous for the FOV to be the same, which makes sense because the scaling is determined by the X width of the screen and used twice to make the square
-    resolvePixels(cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 200, outImage,window);
+    resolvePixels(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::L),cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 200, outImage,window);
 
     outTexture.update(outImage);
     outSprite.setScale(((sf::Vector2f)window.getSize()).componentWiseDiv((sf::Vector2f)outImage.getSize()));
