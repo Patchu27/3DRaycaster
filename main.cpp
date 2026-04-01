@@ -51,7 +51,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
 
     constexpr float degreeConst = 0.0174533f;//1 degree in radians
 
-    constexpr float maxFOVDegrees = 120.f;
+    constexpr float maxFOVDegrees = 135.f;
     constexpr float minFOVDegrees = 30.f;
 
     constexpr float illuminationDistance = 10000.f;
@@ -145,7 +145,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
                 //pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*pixelAngleConst;//made it resXHalf to keep the aspect ratio
                 
                 //I SHOULD HAVE BEEN USING DEGREECONST NOT PIXELANGLECONST. I screwed up. But now I know why it wasn't working how I expected. Wow.
-                pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*degreeConst;//adding rotation input now//made it resXHalf to keep the aspect ratio
+                pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*degreeConst + cameraRotation.y;//adding rotation input now//made it resXHalf to keep the aspect ratio
                 //*******************************
                 
                 // pixelRay.angles.y = (((float)(pixelY-resYHalf)/resY)*pixelAngleConst)*viewAngleDegrees;//made it resXHalf to keep the aspect ratio
@@ -153,7 +153,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
                 for (pixelX = 0; pixelX<resX;pixelX++)
                 {
                                 //pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*pixelAngleConst;
-                                pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*degreeConst;//soon I'll combine these consts to be more efficient but I'm leaving it for now to make the fix clear
+                                pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*degreeConst*cos(pixelRay.angles.y) + cameraRotation.x;//soon I'll combine these consts to be more efficient but I'm leaving it for now to make the fix clear
                                 
                                 //pixelRay.pos.x = cameraPosition.x;
                                 //pixelRay.pos.y = cameraPosition.y;
@@ -215,7 +215,7 @@ int main(){
 
     bool tabLock = 0;
     std::string windowName = "App";
-    bool fullscreenEnabled = 0;
+    bool fullscreenEnabled = 1;
     sf::Vector2u windowResolution{192,108};
     sf::RenderWindow window(sf::VideoMode({100,100}), windowName,sf::State::Windowed);
     
@@ -236,52 +236,83 @@ int main(){
     
     sf::Vector3f cameraPos;
     
-    float FOVDegrees = 60.f;
-    float mouseSensitivity = 0.01f;
+    float FOVDegrees = 90.f;
+    float mouseSensitivity = 0.001f;
     sf::Vector2f cameraRotation{0.f,0.f};
+
+    float flySpeed = 5.f;
+
+    /* *window defined* cursor functions from SFML site
+    setMouseCursorVisible (bool visible)
+ 	Show or hide the mouse cursor.
+void 	setMouseCursorGrabbed (bool grabbed)
+ 	Grab or release the mouse cursor.
+void 	setMouseCursor (const Cursor &cursor)
+    */
+
+    window.setMouseCursorVisible(0);
 
 
     while (window.isOpen()){
  
      if (window.hasFocus()){
-        
+        //poll events
         while (const std::optional event = window.pollEvent())
         {
-            if (event->is<sf::Event::Closed>()||sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Escape))
+            if (event->is<sf::Event::Closed>())
                 window.close();
-                
-              
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Tab)){
-                if (!tabLock){
-                tabLock = 1;
-                
-                fullscreenEnabled = !fullscreenEnabled;
+            
+            if (const auto* mouseMovedRaw = event->getIf<sf::Event::MouseMovedRaw>())
+            {
+                        cameraRotation += {(float)mouseMovedRaw->delta.x*mouseSensitivity,(float)mouseMovedRaw->delta.y*mouseSensitivity};
+                    }   
+                    
+                }
+                sf::Mouse::setPosition((sf::Vector2i)window.getSize().componentWiseDiv({2,2}));
 
-                if (fullscreenEnabled) 
-                    window.create(sf::VideoMode(window.getSize()), windowName,sf::State::Fullscreen);
-                    else
-                    window.create(sf::VideoMode(window.getSize()), windowName,sf::Style::Default,sf::State::Windowed);
-                }
-                }
-                else{
-                tabLock = 0;
-                }
-            }//poll events
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Escape)) window.close();//moved these out of the polling loop because they do not need to be repeated for no reason
+        
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Tab))
+        {
+
+                if (!tabLock){
+                            tabLock = 1;
+                            fullscreenEnabled = !fullscreenEnabled;
+                        if (fullscreenEnabled) 
+                                    window.create(sf::VideoMode(window.getSize()), windowName,sf::State::Fullscreen);
+                        else
+                                    window.create(sf::VideoMode(window.getSize()), windowName,sf::Style::Default,sf::State::Windowed);
+                        }
+                        window.setFramerateLimit(63);
+                        window.setVerticalSyncEnabled(1);//sfml needs a better way to track these variables I don't feel like making another wrapper right now
+                        window.setMouseCursorVisible(0);
+        }
+        else
+        {
+            tabLock = 0;
+        }
+
 
     window.clear(sf::Color::Black);
    
 
-    cameraPos = {(float)sf::Mouse::getPosition().x,(float)sf::Mouse::getPosition().y,500};
+    //CONTROLS
+    //cameraPos = {(float)sf::Mouse::getPosition().x,(float)sf::Mouse::getPosition().y,500};
     //cameraPos = {600,500,500};
+
+    cameraPos += sf::Vector3f(sin(cameraRotation.x)*flySpeed,cos(cameraRotation.x)*flySpeed,sin(cameraRotation.y)*flySpeed);
 
     FOVDegrees = clamp(FOVDegrees*(1.f+0.05f*(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::O)-sf::Keyboard::isKeyPressed(sf::Keyboard::Key::I))),minFOVDegrees,maxFOVDegrees);
 
     outImage.resize(outImage.getSize(),backgroundColor);//this clears the image to black
-
+    
+    //cameraRotation += sf::Vector2f{0.01f,0.0f};
+    //CONTROLS
             //scaling has to be adjusted by the square root of the previous for the FOV to be the same, which makes sense because the scaling is determined by the X width of the screen and used twice to make the square
-    resolvePixels(cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 360, outImage,window);
+    resolvePixels(cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 250, outImage,window);
 
     outTexture.update(outImage);
+    outSprite.setScale(((sf::Vector2f)window.getSize()).componentWiseDiv((sf::Vector2f)outImage.getSize()));
     window.draw(outSprite);
 
 
