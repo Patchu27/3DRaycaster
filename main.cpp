@@ -4,6 +4,7 @@
 #include <time.h>
 #include <chrono>
 #include <math.h>
+#include <thread>
 
 #include <string>
 #include <source_location> // https://en.cppreference.com/w/cpp/utility/source_location
@@ -50,6 +51,11 @@ void getDuration(std::source_location loc = std::source_location::current()){
 
     constexpr float degreeConst = 0.0174533f;//1 degree in radians
 
+    constexpr float maxFOVDegrees = 120.f;
+    constexpr float minFOVDegrees = 30.f;
+
+    constexpr float illuminationDistance = 10000.f;
+
     //this can be used for the x and y const since the scale in the x and y should be kept the same
     constexpr float sepn = 64.f;
 
@@ -61,6 +67,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
         for (size_t i = 0; i < mapSize; i++)
         {
                 map[i] = (!(rand()%5));
+                if (i%mapWidth==0) map[i] = 1;
                 //std::cout << (int)map[i];//cout defaults to reading unsigned 8 bit ints as chars/symbols
         }
     }
@@ -100,15 +107,17 @@ void getDuration(std::source_location loc = std::source_location::current()){
     }
     
 
-    void resolvePixels(const sf::Vector3f& cameraPosition, const sf::Vector3i& mapDimensions, const float snapScale, const float viewAngleDegrees, const size_t maxRaySteps, sf::Image& renderImage,sf::RenderTarget& target)
+    void resolvePixels(const sf::Vector3f& cameraPosition, const sf::Vector2f& cameraRotation, const float FOVDegrees, const sf::Vector3i& mapDimensions, const float snapScale, const size_t maxRaySteps, sf::Image& renderImage,sf::RenderTarget& target)
     {
                 size_t pixelX;
                 size_t pixelY;
                 size_t resX = renderImage.getSize().x;
                 size_t resY = renderImage.getSize().y;
-                float resXHalf = resX/2.f;
-                float resYHalf = resY/2.f;
-                const float pixelAngleConst = viewAngleDegrees/resX;
+                const float resXHalf = (float)resX/2.f;
+                const float resYHalf = (float)resY/2.f;
+
+                //this was no longer needed, and I was confusing it with degreeConst, which was causing me to have scaling problems for hours... leaving this in here for now, will be removed in the next commit
+                //const float pixelAngleConst = FOVDegrees/resX;
 
                 Ray pixelRay;
 
@@ -117,19 +126,46 @@ void getDuration(std::source_location loc = std::source_location::current()){
                 size_t rayStepN;
                 bool collision;
 
-                sf::CircleShape circ(2,3);
+                //sf::CircleShape circ(2,3);
+                
+                float substepVal = snapScale/20.f;
+                
 
             for (pixelY = 0; pixelY<resY; pixelY++)
             {
+                //this is the new version with just a modifier for FOV... I realize this isn't fov really... 
+                //Okay so maybe I do have an fov, it multiplies and I need to divide by the larger of the two dimensions (being the X) like I was doing
+
+                //
+                //pixelRay.angles.y = (((float)(pixelY-resXHalf)/resX+0.5f)*pixelAngleConst)*FOVDegrees;
+
+                //this version, dividing by resX and not resY seems correct to me for scaling and seems to correct x scaling, which makes sense because the y scale would be squished if dividing by the y screen height
+                
+                //*******************************
+                //pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*pixelAngleConst;//made it resXHalf to keep the aspect ratio
+                
+                //I SHOULD HAVE BEEN USING DEGREECONST NOT PIXELANGLECONST. I screwed up. But now I know why it wasn't working how I expected. Wow.
+                pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*degreeConst;//adding rotation input now//made it resXHalf to keep the aspect ratio
+                //*******************************
+                
+                // pixelRay.angles.y = (((float)(pixelY-resYHalf)/resY)*pixelAngleConst)*viewAngleDegrees;//made it resXHalf to keep the aspect ratio
+                
                 for (pixelX = 0; pixelX<resX;pixelX++)
                 {
-                        pixelRay.angles.y = (((float)(pixelY-resYHalf)/resY)*pixelAngleConst)*viewAngleDegrees;//made it resXHalf to keep the aspect ratio
-                                pixelRay.pos.y = cameraPosition.y;
-                   
-                                pixelRay.pos.x = cameraPosition.x;
-                                pixelRay.angles.x = (((float)(pixelX-resXHalf)/resX)*pixelAngleConst)*viewAngleDegrees;
-                                pixelRay.pos.z = cameraPosition.z;
+                                //pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*pixelAngleConst;
+                                pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*degreeConst;//soon I'll combine these consts to be more efficient but I'm leaving it for now to make the fix clear
+                                
+                                //pixelRay.pos.x = cameraPosition.x;
+                                //pixelRay.pos.y = cameraPosition.y;
+                                //pixelRay.pos.z = cameraPosition.z;
+
+                                sf::Vector3f rayVec = sf::Vector3f{sin(pixelRay.angles.x),cos(pixelRay.angles.x),sin(pixelRay.angles.y)}.componentWiseMul({substepVal,substepVal,substepVal});
+
+                                pixelRay.pos = cameraPosition + rayVec.componentWiseMul({substepVal,substepVal,substepVal});
+
+                               // pixelRay.angles.x = (((float)(pixelX-resXHalf)/resXHalf)*pixelAngleConst)*FOVDegrees;
                                 collision = 0;//this is currently unused
+                            
                             for (rayStepN = 0; rayStepN < maxRaySteps; rayStepN++)
                             {
                                         //circ.setPosition({pixelRay.pos.x,pixelRay.pos.y});
@@ -150,7 +186,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
                                                     
                                                         if (sdist<1.f) sdist = 1.f;
 
-                                                        std::uint8_t tempColor = clamp(10000.f/sdist,0,255);
+                                                        std::uint8_t tempColor = clamp(illuminationDistance/sdist,0,255);
                                                         renderImage.setPixel({(unsigned)pixelX,(unsigned)pixelY},sf::Color(tempColor,tempColor,tempColor));
                                                         collision = 1;
                                                         //std::cout << "hit";
@@ -159,7 +195,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
                                             else
                                             {
                                                         //advance ray if no collision is found
-                                                        pixelRay.pos += sf::Vector3f{sin(pixelRay.angles.x)*snapScale/80,cos(pixelRay.angles.x)*snapScale/80,sin(pixelRay.angles.y)*snapScale/80};//the z is missing something. x and y seem to be functioning properly. It doesn't appear to be an issue with the indexing function
+                                                        pixelRay.pos += rayVec;
                                             }
                                     }
                                     else
@@ -179,8 +215,8 @@ int main(){
 
     bool tabLock = 0;
     std::string windowName = "App";
-    bool fullscreenEnabled = 1;
-    sf::Vector2u windowResolution{1920,1080};
+    bool fullscreenEnabled = 0;
+    sf::Vector2u windowResolution{192,108};
     sf::RenderWindow window(sf::VideoMode({100,100}), windowName,sf::State::Windowed);
     
     if (fullscreenEnabled)
@@ -192,14 +228,18 @@ int main(){
     window.setFramerateLimit(63);
     window.setVerticalSyncEnabled(1);
 
-    sf::Image outImage(window.getSize(),sf::Color(255,255,255,255));
+    sf::Image outImage(windowResolution,sf::Color(255,255,255,255));
     sf::Texture outTexture(outImage);
   
     sf::Sprite outSprite{outTexture};
 
-    float viewAngleDegrees = 60.f; 
-
+    
     sf::Vector3f cameraPos;
+    
+    float FOVDegrees = 60.f;
+    float mouseSensitivity = 0.01f;
+    sf::Vector2f cameraRotation{0.f,0.f};
+
 
     while (window.isOpen()){
  
@@ -232,12 +272,16 @@ int main(){
    
 
     cameraPos = {(float)sf::Mouse::getPosition().x,(float)sf::Mouse::getPosition().y,500};
+    //cameraPos = {600,500,500};
+
+    FOVDegrees = clamp(FOVDegrees*(1.f+0.05f*(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::O)-sf::Keyboard::isKeyPressed(sf::Keyboard::Key::I))),minFOVDegrees,maxFOVDegrees);
 
     outImage.resize(outImage.getSize(),backgroundColor);//this clears the image to black
 
-    resolvePixels(cameraPos, {mapWidth,mapHeight,mapDepth}, sepn, viewAngleDegrees, 360, outImage,window);
+            //scaling has to be adjusted by the square root of the previous for the FOV to be the same, which makes sense because the scaling is determined by the X width of the screen and used twice to make the square
+    resolvePixels(cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 360, outImage,window);
 
-     outTexture.update(outImage);
+    outTexture.update(outImage);
     window.draw(outSprite);
 
 
