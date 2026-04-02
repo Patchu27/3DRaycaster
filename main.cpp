@@ -93,8 +93,17 @@ void getDuration(std::source_location loc = std::source_location::current()){
         return sf::Vector3i{(int)floor(input.x/snapScale),(int)floor(input.y/snapScale),(int)floor(input.z/snapScale)};
     }
 
+
+    /*
     size_t coordsToN(const sf::Vector3i& coords,const sf::Vector3i& mapDimensions){//I wish SFML had 3u
         const size_t xyComp = coords.x + coords.y*mapDimensions.x;
+        //old line//return xyComp + coords.z*mapDimensions.y*mapDimensions.x;
+        return xyComp + coords.z*mapXYArea;
+    }
+*/
+
+    size_t coordsToN(const sf::Vector3i& coords){//I wish SFML had 3u
+        const size_t xyComp = coords.x + coords.y*mapWidth;
         //old line//return xyComp + coords.z*mapDimensions.y*mapDimensions.x;
         return xyComp + coords.z*mapXYArea;
     }
@@ -106,6 +115,23 @@ void getDuration(std::source_location loc = std::source_location::current()){
         return input;
     }
     
+    sf::Vector3f rotateVector(sf::Vector3f v, float pitch, float yaw) {
+    sf::Vector3f result;
+    // Rotate around X-axis (Pitch)
+    float cosP = cos(pitch);
+    float sinP = sin(pitch);
+    float y1 = v.y * cosP - v.z * sinP;
+    float z1 = v.y * sinP + v.z * cosP;
+    
+    // Rotate around Z-axis (Yaw)
+    float cosY = cos(yaw);
+    float sinY = sin(yaw);
+    result.x = v.x * cosY - y1 * sinY;
+    result.y = v.x * sinY + y1 * cosY;
+    result.z = z1;
+    
+    return result;
+}
 
     void resolvePixels(bool corrected, const sf::Vector3f& cameraPosition, const sf::Vector2f& cameraRotation, const float FOVDegrees, const sf::Vector3i& mapDimensions, const float snapScale, const size_t maxRaySteps, sf::Image& renderImage,sf::RenderTarget& target)
     {
@@ -125,23 +151,38 @@ void getDuration(std::source_location loc = std::source_location::current()){
 
                 //sf::CircleShape circ(2,3);
                 
-                float substepVal = snapScale/40.f;
+                float substepVal = snapScale/40.f;///40.f;
                 
+                float maxLengthTest = 0.f;
+                float minLengthTest = 99999999999999999999.f;
 
             for (pixelY = 0; pixelY<resY; pixelY++)
             {
                 
-                        pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*degreeConst + cameraRotation.y;
+                        //pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*degreeConst + cameraRotation.y;
+                        pixelRay.angles.y = (((float)pixelY-resYHalf)/resX)*FOVDegrees*degreeConst;
                     for (pixelX = 0; pixelX<resX;pixelX++)
                     {
                                 
-                                pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*degreeConst + cameraRotation.x;//still leaving this in for clarity since I'm still working on it//soon I'll combine these consts to be more efficient but I'm leaving it for now to make the fix clear
+                                //pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*degreeConst + cameraRotation.x;//still leaving this in for clarity since I'm still working on it//soon I'll combine these consts to be more efficient but I'm leaving it for now to make the fix clear
+                                pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*degreeConst;//still leaving this in for clarity since I'm still working on it//soon I'll combine these consts to be more efficient but I'm leaving it for now to make the fix clear
                                 sf::Vector3f rayVec;
                                 //*********//we left off here trying to fix the z/looking down problem. Everything looks fine when you look left and right but as soon as you look up or down everything gets squared and then inverted. It seems that where there should be a downward view there's an inverted view instead, perfectly in its place
+                                
                                 if (corrected)//why is the output wrong only when I look up or down? The camera should rotate the whole cast in any and all directions. It probably won't help the problem but you can try keeping the angle within 1 revolution
-                                rayVec = sf::Vector3f{sin(pixelRay.angles.x)*cos(pixelRay.angles.y),cos(pixelRay.angles.x)*cos(pixelRay.angles.y),sin(pixelRay.angles.y)}.componentWiseMul({substepVal,substepVal,substepVal});
+                                                                                                                                                 //the issue in rendering is definitely here
+                                rayVec = sf::Vector3f{sin(pixelRay.angles.x)*cos(pixelRay.angles.y),cos(pixelRay.angles.x)*cos(pixelRay.angles.y),sin(pixelRay.angles.y)}*substepVal;//now using float mult operator
                                 else
                                 rayVec = sf::Vector3f{sin(pixelRay.angles.x),cos(pixelRay.angles.x),sin(pixelRay.angles.y)}.componentWiseMul({substepVal,substepVal,substepVal});
+
+                                float testVal = rayVec.componentWiseDiv({substepVal,substepVal,substepVal}).length();
+
+                                if (testVal>maxLengthTest) maxLengthTest = testVal;
+                                if (testVal<minLengthTest) minLengthTest = testVal;
+                                //with corrected values, max and min are both 1.f at all times... I'm not really sure what the issue is
+                               // std::cout << testVal << " ";
+
+                                rayVec = rotateVector(rayVec,cameraRotation.y,-cameraRotation.x);
 
                                 pixelRay.pos = cameraPosition + rayVec;//.componentWiseMul({substepVal,substepVal,substepVal});
 
@@ -153,7 +194,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
                                         //target.draw(circ);
 
                                          snappedPos = getGridPos(pixelRay.pos,snapScale);
-                                         size_t mapIndex = coordsToN(snappedPos,mapDimensions);
+                                         size_t mapIndex = coordsToN(snappedPos);
                                     if (mapIndex<mapSize)
                                     {
                                             if (map[mapIndex])
@@ -186,6 +227,8 @@ void getDuration(std::source_location loc = std::source_location::current()){
                             }
                     }
             }
+        std::cout << "MIN LENGTH: " << minLengthTest << std::endl;
+        std::cout << "MAX LENGTH: " << maxLengthTest << std::endl;
     }
 
 int main(){
@@ -209,7 +252,7 @@ int main(){
     window.setVerticalSyncEnabled(1);
 
 
-    const float resolutionScale = 0.08f; 
+    const float resolutionScale = 0.08f;//0.08f 
    
     sf::Image outImage(sf::Vector2u(windowResolution.x*resolutionScale,windowResolution.y*resolutionScale),sf::Color(255,255,255,255));
     sf::Texture outTexture(outImage);
@@ -217,7 +260,7 @@ int main(){
 
     sf::Sprite outSprite{outTexture};
 
-    sf::Vector3f cameraPos;
+    sf::Vector3f cameraPos{100,100,100};
     
     float FOVDegrees = 90.f;
     float mouseSensitivity = 0.001f;
@@ -290,7 +333,9 @@ void 	setMouseCursor (const Cursor &cursor)
 
    // if ((!!frontDirection)||(!!sideDirection))
     //cameraPos += sf::Vector3f(sin(movementVector.x)*flySpeed,cos(movementVector.x)*flySpeed,sin(movementVector.y));
-    cameraPos += sf::Vector3f(sin(cameraRotation.x)*flySpeed*(float)frontDirection,cos(cameraRotation.x)*flySpeed*(float)frontDirection,sin(cameraRotation.y)*flySpeed*(float)frontDirection);
+
+    
+    cameraPos += sf::Vector3f(sin(cameraRotation.x)*cos(cameraRotation.y)*flySpeed*(float)frontDirection,cos(cameraRotation.x)*cos(cameraRotation.y)*flySpeed*(float)frontDirection,sin(cameraRotation.y)*flySpeed*(float)frontDirection);
 
     FOVDegrees = clamp(FOVDegrees*(1.f+0.05f*(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::O)-sf::Keyboard::isKeyPressed(sf::Keyboard::Key::I))),minFOVDegrees,maxFOVDegrees);
 
@@ -300,7 +345,7 @@ void 	setMouseCursor (const Cursor &cursor)
     //cameraRotation += sf::Vector2f{0.01f,0.0f};
     //CONTROLS
             //scaling has to be adjusted by the square root of the previous for the FOV to be the same, which makes sense because the scaling is determined by the X width of the screen and used twice to make the square
-    resolvePixels(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::L),cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 200, outImage,window);
+    resolvePixels(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::L),cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 300, outImage,window);
 
     outTexture.update(outImage);
     outSprite.setScale(((sf::Vector2f)window.getSize()).componentWiseDiv((sf::Vector2f)outImage.getSize()));
