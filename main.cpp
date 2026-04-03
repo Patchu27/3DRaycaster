@@ -66,7 +66,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
     void setMap(){
         for (size_t i = 0; i < mapSize; i++)
         {
-                map[i] = (!(rand()%5));
+                map[i] = (!(rand()%10));
                 if (i%mapWidth==0) map[i] = 1;
                 //std::cout << (int)map[i];//cout defaults to reading unsigned 8 bit ints as chars/symbols
         }
@@ -133,7 +133,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
     return result;
 }
 
-    void resolvePixels(bool corrected, const sf::Vector3f& cameraPosition, const sf::Vector2f& cameraRotation, const float FOVDegrees, const sf::Vector3i& mapDimensions, const float snapScale, const size_t maxRaySteps, sf::Image& renderImage,sf::RenderTarget& target)
+    void resolvePixels(const sf::Vector3f& cameraPosition, const sf::Vector2f& cameraRotation, const float FOVDegrees, const sf::Vector3i& mapDimensions, const float snapScale, const size_t maxRaySteps, sf::Image& renderImage,sf::RenderTarget& target)
     {
                 size_t pixelX;
                 size_t pixelY;
@@ -151,7 +151,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
 
                 //sf::CircleShape circ(2,3);
                 
-                float substepVal = snapScale/40.f;///40.f;
+                float substepVal = snapScale/20.f;///40.f;
                 
                 float maxLengthTest = 0.f;
                 float minLengthTest = 99999999999999999999.f;
@@ -168,13 +168,9 @@ void getDuration(std::source_location loc = std::source_location::current()){
                                 pixelRay.angles.x = (((float)pixelX-resXHalf)/resX)*FOVDegrees*degreeConst;//still leaving this in for clarity since I'm still working on it//soon I'll combine these consts to be more efficient but I'm leaving it for now to make the fix clear
                                 sf::Vector3f rayVec;
                                 //*********//we left off here trying to fix the z/looking down problem. Everything looks fine when you look left and right but as soon as you look up or down everything gets squared and then inverted. It seems that where there should be a downward view there's an inverted view instead, perfectly in its place
-                                
-                                if (corrected)//why is the output wrong only when I look up or down? The camera should rotate the whole cast in any and all directions. It probably won't help the problem but you can try keeping the angle within 1 revolution
-                                                                                                                                                 //the issue in rendering is definitely here
+                                                                                                                                                   //the issue in rendering is definitely here
                                 rayVec = sf::Vector3f{sin(pixelRay.angles.x)*cos(pixelRay.angles.y),cos(pixelRay.angles.x)*cos(pixelRay.angles.y),sin(pixelRay.angles.y)}*substepVal;//now using float mult operator
-                                else
-                                rayVec = sf::Vector3f{sin(pixelRay.angles.x),cos(pixelRay.angles.x),sin(pixelRay.angles.y)}.componentWiseMul({substepVal,substepVal,substepVal});
-
+                               
                                 float testVal = rayVec.componentWiseDiv({substepVal,substepVal,substepVal}).length();
 
                                 if (testVal>maxLengthTest) maxLengthTest = testVal;
@@ -227,8 +223,8 @@ void getDuration(std::source_location loc = std::source_location::current()){
                             }
                     }
             }
-        std::cout << "MIN LENGTH: " << minLengthTest << std::endl;
-        std::cout << "MAX LENGTH: " << maxLengthTest << std::endl;
+        //std::cout << "MIN LENGTH: " << minLengthTest << std::endl;
+        //std::cout << "MAX LENGTH: " << maxLengthTest << std::endl;
     }
 
 int main(){
@@ -290,6 +286,7 @@ void 	setMouseCursor (const Cursor &cursor)
             
             if (const auto* mouseMovedRaw = event->getIf<sf::Event::MouseMovedRaw>())
             {
+                        //cameraRotation += {(float)mouseMovedRaw->delta.x*mouseSensitivity,(float)mouseMovedRaw->delta.y*mouseSensitivity};
                         cameraRotation += {(float)mouseMovedRaw->delta.x*mouseSensitivity,(float)mouseMovedRaw->delta.y*mouseSensitivity};
                     }   
                     
@@ -336,6 +333,7 @@ void 	setMouseCursor (const Cursor &cursor)
 
     
     cameraPos += sf::Vector3f(sin(cameraRotation.x)*cos(cameraRotation.y)*flySpeed*(float)frontDirection,cos(cameraRotation.x)*cos(cameraRotation.y)*flySpeed*(float)frontDirection,sin(cameraRotation.y)*flySpeed*(float)frontDirection);
+    //cameraPos += sf::Vector3f(sin(cameraRotation.x*cos(cameraRotation.y))*cos(cameraRotation.y)*flySpeed*(float)frontDirection,cos(cameraRotation.x*cos(cameraRotation.y)/cos(cameraRotation.x))*cos(cameraRotation.y)*flySpeed*(float)frontDirection,sin(cameraRotation.y*cos(cameraRotation.x))*flySpeed*(float)frontDirection);
 
     FOVDegrees = clamp(FOVDegrees*(1.f+0.05f*(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::O)-sf::Keyboard::isKeyPressed(sf::Keyboard::Key::I))),minFOVDegrees,maxFOVDegrees);
 
@@ -345,7 +343,7 @@ void 	setMouseCursor (const Cursor &cursor)
     //cameraRotation += sf::Vector2f{0.01f,0.0f};
     //CONTROLS
             //scaling has to be adjusted by the square root of the previous for the FOV to be the same, which makes sense because the scaling is determined by the X width of the screen and used twice to make the square
-    resolvePixels(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::L),cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 300, outImage,window);
+    resolvePixels(cameraPos, cameraRotation, FOVDegrees, {mapWidth,mapHeight,mapDepth}, sepn, 300, outImage,window);
 
     outTexture.update(outImage);
     outSprite.setScale(((sf::Vector2f)window.getSize()).componentWiseDiv((sf::Vector2f)outImage.getSize()));

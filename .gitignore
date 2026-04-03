@@ -1,3 +1,4 @@
 App
 *.o
 main.o
+extrabackup/*
