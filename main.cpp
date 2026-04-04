@@ -153,8 +153,8 @@ void getDuration(std::source_location loc = std::source_location::current()){
                 
                 float substepVal = snapScale/20.f;///40.f;
                 
-                float maxLengthTest = 0.f;
-                float minLengthTest = 99999999999999999999.f;
+                //float maxLengthTest = 0.f;
+               // float minLengthTest = 99999999999999999999.f;
 
             for (pixelY = 0; pixelY<resY; pixelY++)
             {
@@ -171,10 +171,10 @@ void getDuration(std::source_location loc = std::source_location::current()){
                                                                                                                                                    //the issue in rendering is definitely here
                                 rayVec = sf::Vector3f{sin(pixelRay.angles.x)*cos(pixelRay.angles.y),cos(pixelRay.angles.x)*cos(pixelRay.angles.y),sin(pixelRay.angles.y)}*substepVal;//now using float mult operator
                                
-                                float testVal = rayVec.componentWiseDiv({substepVal,substepVal,substepVal}).length();
+                                //float testVal = rayVec.componentWiseDiv({substepVal,substepVal,substepVal}).length();
 
-                                if (testVal>maxLengthTest) maxLengthTest = testVal;
-                                if (testVal<minLengthTest) minLengthTest = testVal;
+                                //if (testVal>maxLengthTest) maxLengthTest = testVal;
+                                //if (testVal<minLengthTest) minLengthTest = testVal;
                                 //with corrected values, max and min are both 1.f at all times... I'm not really sure what the issue is
                                // std::cout << testVal << " ";
 
@@ -188,7 +188,7 @@ void getDuration(std::source_location loc = std::source_location::current()){
                             {
                                         //circ.setPosition({pixelRay.pos.x,pixelRay.pos.y});
                                         //target.draw(circ);
-
+                                        
                                          snappedPos = getGridPos(pixelRay.pos,snapScale);
                                          size_t mapIndex = coordsToN(snappedPos);
                                     if (mapIndex<mapSize)
